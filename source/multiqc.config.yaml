@@ -1,0 +1,42 @@
+title: "<b><i>RNA-seq</i> QC</b>"
+subtitle: "A brief QC summary of <i>RNA-seq</i> Analysis"
+intro_text: False
+report_comment: False
+
+show_analysis_paths: False
+show_analysis_time: True
+
+report_header_info:
+  - Contact E-mail: "fei.yuan@bcm.edu"
+  - Application Type: "RNA-seq"
+
+skip_generalstats: true
+
+run_modules:
+  - star
+  - cutadapt
+  - featureCounts
+
+sp:
+  star:
+    fn: "*.map.log"
+  featurecounts:
+    fn: "*.count.summary"
+
+top_modules:
+  - cutadapt
+  - star:
+      anchor: "repeat_elements_mapping"
+      path_filters:
+        - "*.repeat.elements.map.log"
+  - star:
+      anchor: "reference_genome_mapping"
+      path_filters:
+        - "*.reference.genome.map.log"
+
+report_section_order:
+  cutadapt_trimmed_sequences: remove
+
+section_comments:
+  repeat_elements_mapping: "This section shows results of reads that map to repeat elements using STAR."
+  reference_genome_mapping: "This section shows results of reads that map to reference genome using STAR."
