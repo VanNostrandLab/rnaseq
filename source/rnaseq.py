@@ -135,7 +135,7 @@ if not samples:
 FASTQS, SIZES = {}, []
 for sample in samples:
     try:
-        fastq1 = sample['fastq1']
+        fastq1 = sample.get('fastq', '') or sample.get('fastq1', '')
         if os.path.isfile(fastq1):
             SIZES.append(os.path.getsize(fastq1))
         else:
