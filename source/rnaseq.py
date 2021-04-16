@@ -140,6 +140,8 @@ for sample in samples:
             SIZES.append(os.path.getsize(fastq1))
         else:
             raise ValueError(f'FASTQ1 {fastq1} is not a file or does not exist.')
+        sample['fastq'] = fastq1
+        sample['fastq1'] = fastq1
         if 'name' not in sample:
             raise KeyError(f'Sample {sample} does not have name assigned.')
         if 'group' not in sample:
