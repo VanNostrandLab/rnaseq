@@ -154,7 +154,7 @@ for sample in samples:
                     raise ValueError(f'FASTQ2 {sample["fastq2"]} is not a file or does not exist.')
             else:
                 raise ValueError(f'Key fastq2 for sample {sample[name]} does not have a value.')
-        link = os.path.join('fastq_to_bam', f'{sample["name"]}_{sample["group"]}_r1.fastq.gz')
+        link = os.path.join('fastq_to_bam', f'{sample["name"]}.r1.fastq.gz')
         FASTQS[link] = sample
     except KeyError:
         raise KeyError(f'Sample {sample} does not have fastq1 file provided.')
@@ -239,7 +239,7 @@ def cmding(cmd, **kwargs):
 def estimate_process():
     """Estimate number of processes based on the maximum size of fastq file."""
     
-    size = max(SIZES) / (1024 * 1024 * 1024) * 10
+    size = max(SIZES) / (1000 * 1000 * 1000) * 4
     n = int(options.memory / size)
     if n == 0:
         n = 1
@@ -265,7 +265,7 @@ def soft_link(link):
                 if not os.path.exists(link):
                     message = f'Soft link fastq: {os.path.basename(path)} ...'
                     cmding(f'ln -s {path} {link}', message=message)
-    link1, link2 = link, link.replace('_r1.fastq.gz', '_r2.fastq.gz')
+    link1, link2 = link, link.replace('.r1.fastq.gz', '.r2.fastq.gz')
     make_link(FASTQS[link]['fastq1'], link1)
     fastq2 = FASTQS[link].get('fastq2', '')
     if fastq2:
@@ -275,8 +275,8 @@ def soft_link(link):
 @ruffus.jobs_limit(1)
 @ruffus.transform(soft_link, ruffus.suffix('.fastq.gz'), '.clean.fastq')
 def cut_adapt(fastq, output):
-    fastq1, fastq2 = fastq, fastq.replace('_r1.fastq.gz', '_r2.fastq.gz')
-    output1, output2 = output, output.replace('_r1.', '_r2.')
+    fastq1, fastq2 = fastq, fastq.replace('.r1.fastq.gz', '.r2.fastq.gz')
+    output1, output2 = output, output.replace('.r1.', '.r2.')
     cmd = ['cutadapt', '-O', '5', '--times', '2', '-e', '0.0', '-j', options.cores,
            '-m', '18', '--quality-cutoff', '6', '--match-read-wildcards',
            '-b', 'AGATCGGAAGAGCACACGTCTGAACTCCAGTCA',
@@ -293,7 +293,7 @@ def cut_adapt(fastq, output):
         message = f'Cutting adapters for single read {fastq1} ...'
         args = ['-o', output1,  fastq1]
     cmd.extend(args)
-    metrics = fastq.replace('_r1.fastq.gz', '.cutadapt.metrics')
+    metrics = fastq.replace('.r1.fastq.gz', '.cutadapt.metrics')
     cmd.extend(['>', metrics])
     cmding(cmd, message=message)
 
@@ -305,9 +305,9 @@ def sort_fastq(fastq, output):
     cmd = ['fastq-sort', '--id', fastq, '>', output]
     cmding(cmd, message=message)
     
-    fastq2 = fastq.replace('_r1.clean.fastq', '_r2.clean.fastq')
+    fastq2 = fastq.replace('.r1.clean.fastq', '.r2.clean.fastq')
     if os.path.isfile(fastq2):
-        output2 = output.replace('_r1.clean.sort.fastq', '_r2.clean.sort.fastq')
+        output2 = output.replace('.r1.clean.sort.fastq', '.r2.clean.sort.fastq')
         message = f'Sort fastq {fastq2} ...'
         cmd = ['fastq-sort', '--id', fastq2, '>', output2]
         cmding(cmd, message=message)
@@ -316,10 +316,10 @@ def sort_fastq(fastq, output):
 @ruffus.jobs_limit(1)
 @ruffus.follows(ruffus.mkdir('fastq_to_bam/repeat.elements.map'))
 @ruffus.transform(sort_fastq,
-                  ruffus.formatter(r'.+/(?P<BASENAME>.*)_r1.clean.sort.fastq$'),
+                  ruffus.formatter(r'.+/(?P<BASENAME>.*).r1.clean.sort.fastq$'),
                   'fastq_to_bam/repeat.elements.map/{BASENAME[0]}/Unmapped.out.mate1')
 def map_to_repeat_elements(fastq, mate1):
-    fastq1, fastq2 = fastq, fastq.replace('_r1.', '_r2.')
+    fastq1, fastq2 = fastq, fastq.replace('.r1.', '.r2.')
     prefix = os.path.dirname(mate1)
     if not os.path.isdir(prefix):
         os.mkdir(prefix)
@@ -444,7 +444,7 @@ def make_bigwig_files(bam, bigwig):
     pos_bw, neg_bw = bigwig, bigwig.replace('.plus.bw', '.minus.bw')
     with pysam.AlignmentFile(bam, 'rb') as sam:
         total_reads = sam.mapped
-    r2 = bam.replace('.bam', '_r2.fastq.gz')
+    r2 = bam.replace('.bam', '.r2.fastq.gz')
     total_reads = total_reads / 2 if os.path.exists(r2) else total_reads
     try:
         scale = 1000000.0 / total_reads
@@ -537,7 +537,7 @@ def feature_count(inputs, output):
            '-T', options.cores, '-o', counts]
     design, groups = [], []
     for fastq1, sample in FASTQS.items():
-        bam = fastq1.replace('_r1.fastq.gz', '.bam')
+        bam = fastq1.replace('.r1.fastq.gz', '.bam')
         cmd.append(bam)
         design.append((f"{sample['name']}_{sample['group']}", sample['group']))
     cmding(cmd, message=message)
@@ -576,7 +576,7 @@ def DESeq2(count_matrix, output):
 def rMATS(inputs, output):
     bams, read_type = collections.defaultdict(list), ''
     for fastq1, sample in FASTQS.items():
-        bams[sample['group']].append(fastq1.replace('_r1.fastq.gz', '.bam'))
+        bams[sample['group']].append(fastq1.replace('.r1.fastq.gz', '.bam'))
         fastq2 = sample.get('fastq2', '')
         read_type = 'paired' if fastq2 else 'single'
     b1b2 = []
